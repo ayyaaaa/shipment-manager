@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id        Int       @id @default(autoincrement())
+  outlet    String
+  owner     String
+  contact   String
+  gst       String?
+  location  String
+  createdAt DateTime  @default(now())
+
+  // Relations
+  shipmentItems ShipmentItem[]
+}
+
+model Product {
+  id           Int      @id @default(autoincrement())
+  name         String
+  costPrice    Float
+  sellingPrice Float    @default(0)
+  weight       Float
+  createdAt    DateTime @default(now())
+
+  stocks          Stock[]
+  shipmentItems  ShipmentItem[]
+}
+
+model Capital {
+  id                Int      @id @default(autoincrement())
+  name              String   @unique
+  amount            Float
+  remaining         Float
+  status            String   @default("open") // open | closed
+  permanentlyClosed Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  stocks           Stock[]
+  shipments         Shipment[]
+}
+
+model Stock {
+  id         Int      @id @default(autoincrement())
+  product    Product  @relation(fields: [productId], references: [id])
+  productId  Int
+  capital    Capital  @relation(fields: [capitalId], references: [id])
+  capitalId  Int
+  quantity   Int
+  createdAt  DateTime @default(now())
+}
+
+model ExpenseType {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+
+  shipmentExpenses ShipmentExpense[]
+}
+
+model Shipment {
+  id            Int              @id @default(autoincrement())
+  name          String           @unique
+  shipmentDate  DateTime
+  createdAt     DateTime         @default(now())
+  status        String           @default("in transit") // delivered | in transit | etc.
+  capital       Capital          @relation(fields: [capitalId], references: [id])
+  capitalId     Int
+
+  items         ShipmentItem[]
+  expenses      ShipmentExpense[]
+}
+
+model ShipmentItem {
+  id          Int      @id @default(autoincrement())
+  shipment    Shipment @relation(fields: [shipmentId], references: [id])
+  shipmentId  Int
+  customer    Customer @relation(fields: [customerId], references: [id])
+  customerId  Int
+  product     Product  @relation(fields: [productId], references: [id])
+  productId   Int
+  quantity    Int
+}
+
+model ShipmentExpense {
+  id            Int         @id @default(autoincrement())
+  shipment      Shipment    @relation(fields: [shipmentId], references: [id])
+  shipmentId    Int
+  expenseType   ExpenseType @relation(fields: [expenseTypeId], references: [id])
+  expenseTypeId Int
+  amount        Float
+}
