@@ -1,32 +1,56 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+// POST /api/stock
+export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const id = Number(params.id);
+    const { productId, capitalId, quantity } = await req.json()
 
-    const { name, costPrice, sellingPrice, weight } = body;
+    if (!productId || !capitalId || !quantity) {
+      return NextResponse.json({ error: "Missing fields" }, { status: 400 })
+    }
 
-    const updated = await prisma.product.update({
-      where: { id },
-      data: { name, costPrice, sellingPrice, weight },
-    });
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+    })
 
-    return NextResponse.json(updated);
-  } catch (err) {
-    console.error("❌ /api/products/[id] PUT error:", err);
-    return new NextResponse("Internal Server Error", { status: 500 });
-  }
-}
+    if (!product) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 })
+    }
 
-export async function DELETE(_: Request, { params }: { params: { id: string } }) {
-  try {
-    const id = Number(params.id);
-    await prisma.product.delete({ where: { id } });
-    return new NextResponse("Deleted", { status: 200 });
-  } catch (err) {
-    console.error("❌ /api/products/[id] DELETE error:", err);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    const capital = await prisma.capital.findUnique({
+      where: { id: capitalId },
+    })
+
+    if (!capital || capital.status !== "open" || capital.permanentlyClosed) {
+      return NextResponse.json({ error: "Invalid capital source" }, { status: 400 })
+    }
+
+    const totalCost = product.costPrice * quantity
+
+    if (capital.remaining < totalCost) {
+      return new NextResponse("Insufficient capital", { status: 400 })
+    }
+
+    const stock = await prisma.stock.create({
+      data: {
+        productId,
+        capitalId,
+        quantity,
+        createdAt: new Date(),
+      },
+    })
+
+    await prisma.capital.update({
+      where: { id: capitalId },
+      data: {
+        remaining: { decrement: totalCost },
+      },
+    })
+
+    return NextResponse.json(stock)
+  } catch (error) {
+    console.error("❌ STOCK POST ERROR:", error)
+    return new NextResponse("Internal Server Error", { status: 500 })
   }
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -11,219 +12,159 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import {
-  AlertDialog,
-  AlertDialogTrigger,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "@/components/ui/alert-dialog"
-import { Pencil, Trash2 } from "lucide-react"
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface Product {
   id: number
   name: string
   costPrice: number
-  sellingPrice: number
-  weight: number
+  stocks?: { quantity: number; createdAt: string }[]
+  shipmentItems?: { quantity: number }[]
 }
 
-export default function ProductsPage() {
+interface Capital {
+  id: number
+  name: string
+  remaining: number
+  status: string
+  permanentlyClosed: boolean
+}
+
+export default function StockPage() {
   const [products, setProducts] = useState<Product[]>([])
-  const [form, setForm] = useState<Omit<Product, "id">>({
-    name: "",
-    costPrice: 0,
-    sellingPrice: 0,
-    weight: 0,
-  })
-  const [editing, setEditing] = useState<Product | null>(null)
+  const [capitals, setCapitals] = useState<Capital[]>([])
+  const [selectedProduct, setSelectedProduct] = useState("")
+  const [selectedCapital, setSelectedCapital] = useState("")
+  const [quantity, setQuantity] = useState("")
 
   useEffect(() => {
-    fetch("/api/products")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load products")
-        return res.json()
+    fetch("/api/products").then(res => res.json()).then(setProducts)
+    fetch("/api/capital")
+      .then(res => res.json())
+      .then((data) => {
+        const openCaps = data.filter(
+          (c: Capital) => c.status === "open" && !c.permanentlyClosed
+        )
+        setCapitals(openCaps)
       })
-      .then(setProducts)
-      .catch(err => console.error("❌ Product load error:", err))
   }, [])
 
-  const handleAdd = async () => {
-    if (form.sellingPrice <= form.costPrice) {
-      alert("Selling price must be higher than cost price")
-      return
+  const handleAddStock = async () => {
+    if (!selectedProduct || !selectedCapital || !quantity || parseInt(quantity) <= 0) {
+      return alert("Please fill all fields with valid values.")
     }
 
-    const res = await fetch("/api/products", {
+    const res = await fetch("/api/stock", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        productId: Number(selectedProduct),
+        capitalId: Number(selectedCapital),
+        quantity: parseInt(quantity),
+      }),
     })
 
     if (!res.ok) {
-      const errorText = await res.text()
-      console.error("❌ API Error:", errorText)
+      const msg = await res.text()
+      alert(msg === "Insufficient capital" ? "❌ Not enough capital remaining!" : msg)
       return
     }
 
-    const data = await res.json()
-    setProducts([data, ...products])
-    setForm({ name: "", costPrice: 0, sellingPrice: 0, weight: 0 })
-  }
-
-  const handleUpdate = async () => {
-    if (!editing) return
-    if (editing.sellingPrice <= editing.costPrice) {
-      alert("Selling price must be higher than cost price")
-      return
-    }
-
-    const res = await fetch(`/api/products/${editing.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editing),
-    })
-    const updated = await res.json()
-    setProducts((prev) =>
-      prev.map((p) => (p.id === updated.id ? updated : p))
-    )
-    setEditing(null)
-  }
-
-  const handleDelete = async (id: number) => {
-    await fetch(`/api/products/${id}`, { method: "DELETE" })
-    setProducts((prev) => prev.filter((p) => p.id !== id))
+    alert("Stock added successfully!")
+    setProducts([]) // refresh data
+    setQuantity("")
+    setSelectedCapital("")
+    setSelectedProduct("")
+    fetch("/api/products").then(res => res.json()).then(setProducts)
   }
 
   return (
-    <div className="pt-12 md:pt-0">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Products</h1>
+    <div className="p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-green-700">Stock Management</h1>
         <Dialog>
           <DialogTrigger asChild>
-            <Button >Add Product</Button>
+            <Button>Add Stock</Button>
           </DialogTrigger>
-          <DialogContent className="dark:bg-gray-800" >
+          <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Add Product</DialogTitle>
+              <DialogTitle>Add Stock</DialogTitle>
             </DialogHeader>
-            <div className="space-y-2">
-              <Input
-                placeholder="Product Name"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="dark:bg-gray-900"
-              />
-              <Input
-                type="number"
-                placeholder="Cost Price"
-                value={form.costPrice}
-                onChange={(e) => setForm({ ...form, costPrice: parseFloat(e.target.value) })}
-                className="dark:bg-gray-900"
 
-              />
-              <Input
-                type="number"
-                placeholder="Selling Price"
-                value={form.sellingPrice}
-                onChange={(e) => setForm({ ...form, sellingPrice: parseFloat(e.target.value) })}
-                className="dark:bg-gray-900"
+            <Select onValueChange={setSelectedProduct} value={selectedProduct}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select Product" />
+              </SelectTrigger>
+              <SelectContent>
+                {products.map(p => (
+                  <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-/>
-              <Input
-                type="number"
-                placeholder="Weight"
-                value={form.weight}
-                onChange={(e) => setForm({ ...form, weight: parseFloat(e.target.value) })}
-                className="dark:bg-gray-900"
+            <Select onValueChange={setSelectedCapital} value={selectedCapital}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select Capital" />
+              </SelectTrigger>
+              <SelectContent>
+                {capitals.map(c => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.name} (MVR {c.remaining})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-/>
-              <Button className="bg-green-700" onClick={handleAdd}>Save</Button>
-            </div>
+            <Input
+              type="number"
+              placeholder="Quantity"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+            />
+
+            <Button onClick={handleAddStock}>Add</Button>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="overflow-auto rounded border border-gray-200 bg-white dark:bg-gray-800">
+      <div className="overflow-auto border border-gray-200 rounded">
         <table className="w-full text-sm text-left">
           <thead className="bg-green-700 text-white">
             <tr>
-              <th className="px-4 py-2">Name</th>
-              <th className="px-4 py-2">Cost (MVR)</th>
-              <th className="px-4 py-2">Price (MVR)</th>
-              <th className="px-4 py-2">Weight</th>
-              <th className="px-4 py-2 text-center">Actions</th>
+              <th className="px-4 py-2">Product</th>
+              <th className="px-4 py-2">Total Stock</th>
+              <th className="px-4 py-2">Used</th>
+              <th className="px-4 py-2">Remaining</th>
+              <th className="px-4 py-2">Last Updated</th>
             </tr>
           </thead>
           <tbody>
-            {products.map((p) => (
-              <tr key={p.id} className="border-b dark:border-gray-700">
-                <td className="px-4 py-2">{p.name}</td>
-                <td className="px-4 py-2">MVR {p.costPrice}</td>
-                <td className="px-4 py-2">MVR {p.sellingPrice}</td>
-                <td className="px-4 py-2">{p.weight}</td>
-                <td className="px-4 py-2 space-x-2 text-center">
-                  <Button size="sm" variant="outline" onClick={() => setEditing(p)}>
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="sm">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete this product?</AlertDialogTitle>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDelete(p.id)}>
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </td>
-              </tr>
-            ))}
+            {products.map(product => {
+              const total = (product.stocks ?? []).reduce((sum, s) => sum + s.quantity, 0)
+              const used = (product.shipmentItems ?? []).reduce((sum, s) => sum + s.quantity, 0)
+              const remaining = total - used
+              const lastUpdate = (product.stocks ?? []).length > 0
+                ? format(new Date((product.stocks ?? []).reduce((a, b) => new Date(a.createdAt) > new Date(b.createdAt) ? a : b).createdAt), "dd/MM/yyyy")
+                : "N/A"
+
+              return (
+                <tr key={product.id} className="border-b">
+                  <td className="px-4 py-2">{product.name}</td>
+                  <td className="px-4 py-2">{total}</td>
+                  <td className="px-4 py-2">{used}</td>
+                  <td className="px-4 py-2">{remaining}</td>
+                  <td className="px-4 py-2">{lastUpdate}</td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
-
-      <Dialog open={!!editing} onOpenChange={() => setEditing(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Product</DialogTitle>
-          </DialogHeader>
-          {editing && (
-            <div className="space-y-2">
-              <Input
-                value={editing.name}
-                onChange={(e) => setEditing((prev) => prev && { ...prev, name: e.target.value })}
-              />
-              <Input
-                type="number"
-                value={editing.costPrice}
-                onChange={(e) => setEditing((prev) => prev && { ...prev, costPrice: parseFloat(e.target.value) })}
-              />
-              <Input
-                type="number"
-                value={editing.sellingPrice}
-                onChange={(e) => setEditing((prev) => prev && { ...prev, sellingPrice: parseFloat(e.target.value) })}
-              />
-              <Input
-                type="number"
-                value={editing.weight}
-                onChange={(e) => setEditing((prev) => prev && { ...prev, weight: parseFloat(e.target.value) })}
-              />
-              <Button onClick={handleUpdate}>Update</Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

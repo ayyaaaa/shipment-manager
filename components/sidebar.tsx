@@ -16,10 +16,10 @@ const navItems = [
   { name: "Capital", href: "/capital" }, // ✅ Capital Link Added Here
   { name: "Stock", href: "/stock" },
   { name: "Shipments", href: "/shipments" },
+  { name: "Invoice", href: "/invoices" },
   { name: "Profit", href: "/profit" },
   { name: "Investors", href: "/investors" },
   { name: "Reports", href: "/reports" },
-  { name: "Invoicing & Sales", href: "/sales" },
   { name: "Database", href: "/database" },
 ]
 
