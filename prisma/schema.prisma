@@ -16,8 +16,9 @@ model Customer {
   location  String
   createdAt DateTime  @default(now())
 
-  // Relations
   shipmentItems ShipmentItem[]
+  invoices      Invoice[]
+  sales         Sale[]
 }
 
 model Product {
@@ -28,23 +29,23 @@ model Product {
   weight       Float
   createdAt    DateTime @default(now())
 
-  stocks          Stock[]
+  stocks         Stock[]
   shipmentItems  ShipmentItem[]
+  invoiceItems   InvoiceItem[]
 }
 
 model Capital {
   id                Int      @id @default(autoincrement())
   name              String   @unique
-  amount            Float
+  amount            Float    @default(0)
   remaining         Float
-  status            String   @default("open") // open | closed
+  status            String   @default("open")
   permanentlyClosed Boolean  @default(false)
   createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  updatedAt         DateTime @default(now())
 
-  // Relations
-  stocks           Stock[]
-  shipments         Shipment[]
+  stocks    Stock[]
+  shipments Shipment[]
 }
 
 model Stock {
@@ -66,25 +67,26 @@ model ExpenseType {
 }
 
 model Shipment {
-  id            Int              @id @default(autoincrement())
-  name          String           @unique
-  shipmentDate  DateTime
-  createdAt     DateTime         @default(now())
-  status        String           @default("in transit") // delivered | in transit | etc.
-  capital       Capital          @relation(fields: [capitalId], references: [id])
-  capitalId     Int
+  id           Int               @id @default(autoincrement())
+  name         String            @unique
+  shipmentDate DateTime
+  createdAt    DateTime          @default(now())
+  status       String            @default("in transit")
+  capital      Capital           @relation(fields: [capitalId], references: [id])
+  capitalId    Int
 
-  items         ShipmentItem[]
-  expenses      ShipmentExpense[]
+  items        ShipmentItem[]
+  expenses     ShipmentExpense[]
+  invoices     Invoice[]
 }
 
 model ShipmentItem {
-  id          Int      @id @default(autoincrement())
-  shipment    Shipment @relation(fields: [shipmentId], references: [id])
+  id          Int       @id @default(autoincrement())
+  shipment    Shipment  @relation(fields: [shipmentId], references: [id])
   shipmentId  Int
-  customer    Customer @relation(fields: [customerId], references: [id])
+  customer    Customer  @relation(fields: [customerId], references: [id])
   customerId  Int
-  product     Product  @relation(fields: [productId], references: [id])
+  product     Product   @relation(fields: [productId], references: [id])
   productId   Int
   quantity    Int
 }
@@ -96,4 +98,40 @@ model ShipmentExpense {
   expenseType   ExpenseType @relation(fields: [expenseTypeId], references: [id])
   expenseTypeId Int
   amount        Float
+}
+
+model Invoice {
+  id           Int           @id @default(autoincrement())
+  shipment     Shipment      @relation(fields: [shipmentId], references: [id])
+  shipmentId   Int
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  customerId   Int
+  dueDate      DateTime
+  shippingCost Float
+  status       String        @default("unpaid")
+  code         String        @unique
+  createdAt    DateTime      @default(now())
+
+  items        InvoiceItem[]
+  sale         Sale?
+}
+
+model InvoiceItem {
+  id         Int      @id @default(autoincrement())
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id])
+  invoiceId  Int
+  product    Product  @relation(fields: [productId], references: [id])
+  productId  Int
+  quantity   Int
+  price      Float
+}
+
+model Sale {
+  id         Int      @id @default(autoincrement())
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id])
+  invoiceId  Int      @unique
+  customer   Customer @relation(fields: [customerId], references: [id])
+  customerId Int
+  amount     Float
+  paidAt     DateTime @default(now())
 }
